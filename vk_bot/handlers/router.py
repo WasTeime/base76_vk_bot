@@ -22,7 +22,8 @@ async def send(bot: SimpleLongPollBot, peer_id: int, text: str, keyboard: str = 
     kwargs = {"peer_id": peer_id, "message": text, "random_id": 0}
     if keyboard:
         kwargs["keyboard"] = keyboard
-    await bot.api.messages.send(**kwargs)
+    api = bot.api_session.get_context()
+    await api.messages.send(**kwargs)
 
 
 def register_handlers(bot: SimpleLongPollBot) -> None:
