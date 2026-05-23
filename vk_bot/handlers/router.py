@@ -44,8 +44,13 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
             set_state(vk_id, "waiting_phone")
             await send(
                 event, vk_id,
-                "👋 Добро пожаловать в программу лояльности База 76!\n\n"
-                "Введите ваш номер телефона для регистрации (например, +79001234567):",
+                "👋 Привет! Я бот программы лояльности магазина одежды База 76.\n\n"
+                "🎁 Что я умею:\n"
+                "• Дать тебе скидку 10% на первую покупку\n"
+                "• Начислять скидку 15% за каждого приведённого друга\n"
+                "• Активировать скидки прямо в момент покупки на кассе\n\n"
+                "Для регистрации напиши свой номер телефона (например, +79001234567).\n\n"
+                "🔒 Телефон нужен чтобы связать твой VK-аккаунт со скидками — никому не передаётся.",
                 remove_keyboard(),
             )
             return
@@ -166,7 +171,15 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
             await send(event, vk_id, responses.get(result, "Ошибка"), main_menu_keyboard())
             return
 
-        # ── Неизвестная команда ───────────────────────────────────────
-        await send(event, vk_id, "Воспользуйтесь кнопками меню 👇", main_menu_keyboard())
+        # ── Неизвестная команда / приветствие ─────────────────────────
+        await send(
+            event, vk_id,
+            f"🎁 База 76 — программа лояльности\n\n"
+            f"🔗 Твой реф-код: {user_data['ref_code']}\n"
+            f"📊 Скидка 10% на первую покупку: {'доступна' if user_data['has_first_discount'] else 'использована'}\n"
+            f"👥 Скидок 15% накоплено: {user_data['friend_discounts_count']}\n\n"
+            f"Используй кнопки внизу 👇",
+            main_menu_keyboard(),
+        )
 
     bot.dispatcher.add_router(router)
