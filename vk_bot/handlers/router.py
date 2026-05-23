@@ -90,37 +90,54 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
             has_first = user_data.get("has_first_discount", False)
             ref_count = user_data.get("friend_discounts_count", 0)
 
-            if not has_first and ref_count == 0:
-                await send(
-                    event, vk_id,
-                    f"😔 У вас пока нет активных скидок.\n\n"
-                    f"🔗 Поделитесь реф-кодом {user_data['ref_code']} с друзьями "
-                    f"— за каждого получите скидку 15%!",
-                    main_menu_keyboard(),
-                )
-                return
-
+            lines = ["🎁 Ваши скидки:\n"]
             if has_first:
-                set_state(vk_id, "confirm_first_10")
-                await send(
-                    event, vk_id,
-                    "🎁 Скидка 10% на первую покупку\n\n"
-                    "Напишите «да» чтобы активировать скидку на кассе:",
-                )
-                return
+                lines.append("✅ Скидка 10% на первую покупку — доступна")
+            else:
+                lines.append("☑️ Скидка 10% на первую покупку — использована")
 
             if ref_count > 0:
-                set_state(vk_id, "confirm_referral_15")
-                await send(
-                    event, vk_id,
-                    f"👥 Реферальных скидок 15%: {ref_count} шт.\n\n"
-                    "Напишите «да» чтобы активировать одну скидку на кассе:",
+                lines.append(f"✅ Скидки 15% за друзей: {ref_count} шт.")
+            else:
+                lines.append("• Скидки 15% за друзей: нет")
+
+            if not has_first and ref_count == 0:
+                lines.append(
+                    f"\n🔗 Поделитесь реф-кодом {user_data['ref_code']} с друзьями "
+                    f"— за каждого получите скидку 15%!"
                 )
+                await send(event, vk_id, "\n".join(lines), main_menu_keyboard())
                 return
+
+            # Есть что активировать — спрашиваем что именно
+            if has_first and ref_count > 0:
+                set_state(vk_id, "choose_discount")
+                lines.append("\nКакую скидку активировать? Напиши «10» или «15»:")
+            elif has_first:
+                set_state(vk_id, "confirm_first_10")
+                lines.append("\n⚠️ Активируйте только на кассе!\nНапишите «да» чтобы активировать скидку 10%:")
+            else:
+                set_state(vk_id, "confirm_referral_15")
+                lines.append("\n⚠️ Активируйте только на кассе!\nНапишите «да» чтобы активировать одну скидку 15%:")
+            await send(event, vk_id, "\n".join(lines), main_menu_keyboard())
+            return
 
         if text == "👥 Ввести код друга":
             set_state(vk_id, "waiting_ref_code")
-            await send(event, vk_id, "Введите реф-код друга (например, BRO-AB12):")
+            await send(event, vk_id, "Введите реф-код друга (например, BRO-AB12):", main_menu_keyboard())
+            return
+
+        # Выбор скидки если доступны обе
+        if state == "choose_discount":
+            if text.strip() == "10":
+                set_state(vk_id, "confirm_first_10")
+                await send(event, vk_id, "Напишите «да» чтобы активировать скидку 10%:", main_menu_keyboard())
+            elif text.strip() == "15":
+                set_state(vk_id, "confirm_referral_15")
+                await send(event, vk_id, "Напишите «да» чтобы активировать одну скидку 15%:", main_menu_keyboard())
+            else:
+                clear_state(vk_id)
+                await send(event, vk_id, "Не понял. Открой «Мои скидки» снова и выбери.", main_menu_keyboard())
             return
 
         # ── Подтверждение скидок ──────────────────────────────────────
