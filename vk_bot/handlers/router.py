@@ -18,12 +18,11 @@ router = DefaultRouter()
 log = logging.getLogger(__name__)
 
 
-async def send(bot: SimpleLongPollBot, peer_id: int, text: str, keyboard: str = None) -> None:
+async def send(event: BotEvent, peer_id: int, text: str, keyboard: str = None) -> None:
     kwargs = {"peer_id": peer_id, "message": text, "random_id": 0}
     if keyboard:
         kwargs["keyboard"] = keyboard
-    api = bot.api_session.get_context()
-    await api.messages.send(**kwargs)
+    await event.api_ctx.messages.send(**kwargs)
 
 
 def register_handlers(bot: SimpleLongPollBot) -> None:
@@ -44,7 +43,7 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
         if not registered and state != "waiting_phone":
             set_state(vk_id, "waiting_phone")
             await send(
-                bot, vk_id,
+                event, vk_id,
                 "👋 Добро пожаловать в программу лояльности База 76!\n\n"
                 "Введите ваш номер телефона для регистрации (например, +79001234567):",
                 remove_keyboard(),
@@ -55,24 +54,24 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
         if state == "waiting_phone":
             if not is_valid_phone(text):
                 await send(
-                    bot, vk_id,
+                    event, vk_id,
                     "❌ Неверный формат номера. Введите в формате +79001234567:",
                 )
                 return
 
             try:
                 user_data = await register(vk_id, text)
-            except Exception as e:
+            except Exception:
                 log.exception("Register failed")
                 await send(
-                    bot, vk_id,
+                    event, vk_id,
                     "❌ Этот телефон уже зарегистрирован на другой аккаунт.",
                 )
                 return
             clear_state(vk_id)
 
             await send(
-                bot, vk_id,
+                event, vk_id,
                 f"✅ Вы зарегистрированы!\n\n"
                 f"🎁 Вам доступна скидка 10% на первую покупку.\n"
                 f"🔗 Ваш реф-код: {user_data['ref_code']}\n\n"
@@ -88,7 +87,7 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
 
             if not has_first and ref_count == 0:
                 await send(
-                    bot, vk_id,
+                    event, vk_id,
                     f"😔 У вас пока нет активных скидок.\n\n"
                     f"🔗 Поделитесь реф-кодом {user_data['ref_code']} с друзьями "
                     f"— за каждого получите скидку 15%!",
@@ -99,7 +98,7 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
             if has_first:
                 set_state(vk_id, "confirm_first_10")
                 await send(
-                    bot, vk_id,
+                    event, vk_id,
                     "🎁 Скидка 10% на первую покупку\n\n"
                     "Напишите «да» чтобы активировать скидку на кассе:",
                 )
@@ -108,7 +107,7 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
             if ref_count > 0:
                 set_state(vk_id, "confirm_referral_15")
                 await send(
-                    bot, vk_id,
+                    event, vk_id,
                     f"👥 Реферальных скидок 15%: {ref_count} шт.\n\n"
                     "Напишите «да» чтобы активировать одну скидку на кассе:",
                 )
@@ -116,7 +115,7 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
 
         if text == "👥 Ввести код друга":
             set_state(vk_id, "waiting_ref_code")
-            await send(bot, vk_id, "Введите реф-код друга (например, BRO-AB12):")
+            await send(event, vk_id, "Введите реф-код друга (например, BRO-AB12):")
             return
 
         # ── Подтверждение скидок ──────────────────────────────────────
@@ -127,14 +126,14 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
                 if ok:
                     now = datetime.now().strftime("%d.%m.%Y %H:%M")
                     await send(
-                        bot, vk_id,
+                        event, vk_id,
                         f"✅ Скидка 10% активирована\n\n🕐 {now}\n\nПокажите этот экран продавцу.",
                         main_menu_keyboard(),
                     )
                 else:
-                    await send(bot, vk_id, "Скидка уже была использована.", main_menu_keyboard())
+                    await send(event, vk_id, "Скидка уже была использована.", main_menu_keyboard())
             else:
-                await send(bot, vk_id, "Активация отменена.", main_menu_keyboard())
+                await send(event, vk_id, "Активация отменена.", main_menu_keyboard())
             return
 
         if state == "confirm_referral_15":
@@ -144,14 +143,14 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
                 if ok:
                     now = datetime.now().strftime("%d.%m.%Y %H:%M")
                     await send(
-                        bot, vk_id,
+                        event, vk_id,
                         f"✅ Скидка 15% активирована\n\n🕐 {now}\n\nПокажите этот экран продавцу.",
                         main_menu_keyboard(),
                     )
                 else:
-                    await send(bot, vk_id, "Реферальных скидок не осталось.", main_menu_keyboard())
+                    await send(event, vk_id, "Реферальных скидок не осталось.", main_menu_keyboard())
             else:
-                await send(bot, vk_id, "Активация отменена.", main_menu_keyboard())
+                await send(event, vk_id, "Активация отменена.", main_menu_keyboard())
             return
 
         # ── Ввод реф-кода ─────────────────────────────────────────────
@@ -164,10 +163,10 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
                 "not_found":    "❌ Код не найден. Проверьте правильность ввода.",
                 "already_used": "❌ Вы уже использовали реф-код ранее.",
             }
-            await send(bot, vk_id, responses.get(result, "Ошибка"), main_menu_keyboard())
+            await send(event, vk_id, responses.get(result, "Ошибка"), main_menu_keyboard())
             return
 
         # ── Неизвестная команда ───────────────────────────────────────
-        await send(bot, vk_id, "Воспользуйтесь кнопками меню 👇", main_menu_keyboard())
+        await send(event, vk_id, "Воспользуйтесь кнопками меню 👇", main_menu_keyboard())
 
     bot.dispatcher.add_router(router)
