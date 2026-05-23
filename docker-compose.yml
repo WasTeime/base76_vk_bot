@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  vk_bot:
+    build:
+      context: .
+      dockerfile: vk_bot/Dockerfile
+    restart: always
+    environment:
+      VK_BOT_TOKEN:     ${VK_BOT_TOKEN}
+      VK_GROUP_ID:      ${VK_GROUP_ID}
+      LOYALTY_API_URL:  ${LOYALTY_API_URL}
+      LOYALTY_API_KEY:  ${LOYALTY_API_KEY}
