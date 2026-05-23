@@ -169,4 +169,4 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
         # ── Неизвестная команда ───────────────────────────────────────
         await send(bot, vk_id, "Воспользуйтесь кнопками меню 👇", main_menu_keyboard())
 
-    bot.include_router(router)
+    bot.dispatcher.add_router(router)
