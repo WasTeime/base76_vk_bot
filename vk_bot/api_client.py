@@ -11,15 +11,16 @@ API_KEY = os.environ["LOYALTY_API_KEY"]
 _headers = {"X-Loyalty-Key": API_KEY, "Content-Type": "application/json"}
 
 
+# verify=False — обращаемся к своему же API, можно не проверять SSL
 async def _post(path: str, json: dict) -> dict:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=False) as client:
         r = await client.post(f"{API_URL}{path}", json=json, headers=_headers)
         r.raise_for_status()
         return r.json()
 
 
 async def _get(path: str) -> dict:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=False) as client:
         r = await client.get(f"{API_URL}{path}", headers=_headers)
         r.raise_for_status()
         return r.json()
