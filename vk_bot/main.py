@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 
@@ -7,7 +6,7 @@ from vkwave.bots import SimpleLongPollBot
 from vk_bot.handlers.router import register_handlers
 
 
-async def main() -> None:
+def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [VK] %(levelname)s %(message)s",
@@ -21,8 +20,8 @@ async def main() -> None:
     register_handlers(bot)
 
     logging.info("VK bot started")
-    await bot.run()
+    bot.run_forever()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
