@@ -12,7 +12,6 @@ from vk_bot.api_client import (
 )
 from vk_bot.keyboards import main_menu_keyboard, remove_keyboard
 from vk_bot.state import get_state, set_state, clear_state
-from vk_bot.utils import is_valid_phone
 
 router = DefaultRouter()
 log = logging.getLogger(__name__)
@@ -39,49 +38,25 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
         user_data = await get_user(vk_id)
         registered = user_data.get("registered", False)
 
-        # ── Незарегистрированный пользователь ─────────────────────────
-        if not registered and state != "waiting_phone":
-            set_state(vk_id, "waiting_phone")
-            await send(
-                event, vk_id,
-                "👋 Привет! Я бот программы лояльности магазина одежды База 76.\n\n"
-                "🎁 Что я умею:\n"
-                "• Дам тебе скидку 10% на первую покупку\n"
-                "• За каждого друга, который введёт твой реф-код, начислю тебе скидку 15%\n"
-                "  (друг при этом получит свою стандартную скидку 10% на первую покупку)\n"
-                "• Активирую скидки прямо в момент покупки на кассе\n\n"
-                "Для регистрации напиши свой номер телефона (например, +79001234567).\n\n"
-                "🔒 Телефон нужен чтобы связать твой VK-аккаунт со скидками — никому не передаётся.",
-                remove_keyboard(),
-            )
-            return
-
-        # ── Ожидаем номер телефона ────────────────────────────────────
-        if state == "waiting_phone":
-            if not is_valid_phone(text):
-                await send(
-                    event, vk_id,
-                    "❌ Неверный формат номера. Введите в формате +79001234567:",
-                )
-                return
-
+        # ── Автоматическая регистрация при первом сообщении ──────────
+        if not registered:
             try:
-                user_data = await register(vk_id, text)
+                user_data = await register(vk_id)
             except Exception:
                 log.exception("Register failed")
-                await send(
-                    event, vk_id,
-                    "❌ Этот телефон уже зарегистрирован на другой аккаунт.",
-                )
+                await send(event, vk_id, "❌ Не удалось зарегистрировать. Попробуйте позже.")
                 return
-            clear_state(vk_id)
             await send(
                 event, vk_id,
-                f"✅ Вы зарегистрированы!\n\n"
-                f"🎁 Вам доступна скидка 10% на первую покупку.\n"
-                f"🔗 Ваш реф-код: {user_data['ref_code']}\n\n"
-                f"Поделитесь кодом с друзьями: друг получит свою скидку 10% на первую покупку, "
-                f"а вам начислится скидка 15% за каждого приведённого.",
+                f"👋 Привет! Я бот программы лояльности магазина одежды База 76.\n\n"
+                f"🎁 Что я умею:\n"
+                f"• Дам тебе скидку 10% на первую покупку\n"
+                f"• За каждого друга, который введёт твой реф-код, начислю тебе скидку 15%\n"
+                f"  (друг при этом получит свою стандартную скидку 10% на первую покупку)\n"
+                f"• Активирую скидки прямо в момент покупки на кассе\n\n"
+                f"✅ Ты уже зарегистрирован!\n"
+                f"🔗 Твой реф-код: <b>{user_data['ref_code']}</b>\n\n"
+                f"Нажми «🎁 Мои скидки» внизу чтобы активировать скидку 10% на кассе.",
                 main_menu_keyboard(),
             )
             return

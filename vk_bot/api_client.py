@@ -30,8 +30,11 @@ async def get_user(vk_id: int) -> dict:
     return await _get(f"/api/loyalty/vk/me/{vk_id}")
 
 
-async def register(vk_id: int, phone: str) -> dict:
-    return await _post("/api/loyalty/vk/register", {"vk_id": str(vk_id), "phone": phone})
+async def register(vk_id: int, phone: str = "") -> dict:
+    payload = {"vk_id": str(vk_id)}
+    if phone:
+        payload["phone"] = phone
+    return await _post("/api/loyalty/vk/register", payload)
 
 
 async def activate_first(vk_id: int) -> bool:
