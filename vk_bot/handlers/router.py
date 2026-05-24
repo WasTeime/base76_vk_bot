@@ -13,7 +13,6 @@ from vk_bot.api_client import (
 from vk_bot.keyboards import main_menu_keyboard, remove_keyboard
 from vk_bot.state import get_state, set_state, clear_state
 from vk_bot.utils import is_valid_phone
-from vk_bot import sms
 
 router = DefaultRouter()
 log = logging.getLogger(__name__)
@@ -66,62 +65,19 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
                 )
                 return
 
-            phone = "+" + "".join(c for c in text if c.isdigit())
-            if phone.startswith("+8"):
-                phone = "+7" + phone[2:]
-
-            # Если включён SMS — отправляем код, ждём подтверждения
-            if sms.is_enabled():
-                code = sms.generate_code()
-                ok = await sms.send_code(phone, code)
-                if not ok:
-                    await send(event, vk_id, "❌ Не удалось отправить SMS. Попробуйте позже.", remove_keyboard())
-                    return
-                sms.store_pending(vk_id, phone, code)
-                set_state(vk_id, "waiting_sms_code")
-                await send(
-                    event, vk_id,
-                    f"📱 На номер {phone} отправлен код подтверждения.\n\n"
-                    f"Введите его (4 цифры). Действует 5 минут.",
-                )
-                return
-
-            # SMS не настроен — регистрируем сразу
             try:
-                user_data = await register(vk_id, phone)
+                user_data = await register(vk_id, text)
             except Exception:
                 log.exception("Register failed")
-                await send(event, vk_id, "❌ Этот телефон уже зарегистрирован на другой аккаунт.")
+                await send(
+                    event, vk_id,
+                    "❌ Этот телефон уже зарегистрирован на другой аккаунт.",
+                )
                 return
             clear_state(vk_id)
             await send(
                 event, vk_id,
                 f"✅ Вы зарегистрированы!\n\n"
-                f"🎁 Вам доступна скидка 10% на первую покупку.\n"
-                f"🔗 Ваш реф-код: {user_data['ref_code']}\n\n"
-                f"Поделитесь кодом с друзьями: друг получит свою скидку 10% на первую покупку, "
-                f"а вам начислится скидка 15% за каждого приведённого.",
-                main_menu_keyboard(),
-            )
-            return
-
-        # ── Ожидаем SMS-код ───────────────────────────────────────────
-        if state == "waiting_sms_code":
-            phone = sms.verify(vk_id, text)
-            if not phone:
-                await send(event, vk_id, "❌ Неверный код или он истёк. Введите код ещё раз или напиши номер телефона заново.")
-                return
-            try:
-                user_data = await register(vk_id, phone)
-            except Exception:
-                log.exception("Register failed")
-                await send(event, vk_id, "❌ Этот телефон уже зарегистрирован на другой аккаунт.")
-                clear_state(vk_id)
-                return
-            clear_state(vk_id)
-            await send(
-                event, vk_id,
-                f"✅ Номер подтверждён, вы зарегистрированы!\n\n"
                 f"🎁 Вам доступна скидка 10% на первую покупку.\n"
                 f"🔗 Ваш реф-код: {user_data['ref_code']}\n\n"
                 f"Поделитесь кодом с друзьями: друг получит свою скидку 10% на первую покупку, "
