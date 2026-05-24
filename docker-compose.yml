@@ -11,3 +11,5 @@ services:
       VK_GROUP_ID:      ${VK_GROUP_ID}
       LOYALTY_API_URL:  ${LOYALTY_API_URL}
       LOYALTY_API_KEY:  ${LOYALTY_API_KEY}
+      SMSC_LOGIN:       ${SMSC_LOGIN:-}
+      SMSC_PASSWORD:    ${SMSC_PASSWORD:-}

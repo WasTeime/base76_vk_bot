@@ -13,6 +13,7 @@ from vk_bot.api_client import (
 from vk_bot.keyboards import main_menu_keyboard, remove_keyboard
 from vk_bot.state import get_state, set_state, clear_state
 from vk_bot.utils import is_valid_phone
+from vk_bot import sms
 
 router = DefaultRouter()
 log = logging.getLogger(__name__)
@@ -65,20 +66,62 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
                 )
                 return
 
-            try:
-                user_data = await register(vk_id, text)
-            except Exception:
-                log.exception("Register failed")
+            phone = "+" + "".join(c for c in text if c.isdigit())
+            if phone.startswith("+8"):
+                phone = "+7" + phone[2:]
+
+            # Если включён SMS — отправляем код, ждём подтверждения
+            if sms.is_enabled():
+                code = sms.generate_code()
+                ok = await sms.send_code(phone, code)
+                if not ok:
+                    await send(event, vk_id, "❌ Не удалось отправить SMS. Попробуйте позже.", remove_keyboard())
+                    return
+                sms.store_pending(vk_id, phone, code)
+                set_state(vk_id, "waiting_sms_code")
                 await send(
                     event, vk_id,
-                    "❌ Этот телефон уже зарегистрирован на другой аккаунт.",
+                    f"📱 На номер {phone} отправлен код подтверждения.\n\n"
+                    f"Введите его (4 цифры). Действует 5 минут.",
                 )
                 return
-            clear_state(vk_id)
 
+            # SMS не настроен — регистрируем сразу
+            try:
+                user_data = await register(vk_id, phone)
+            except Exception:
+                log.exception("Register failed")
+                await send(event, vk_id, "❌ Этот телефон уже зарегистрирован на другой аккаунт.")
+                return
+            clear_state(vk_id)
             await send(
                 event, vk_id,
                 f"✅ Вы зарегистрированы!\n\n"
+                f"🎁 Вам доступна скидка 10% на первую покупку.\n"
+                f"🔗 Ваш реф-код: {user_data['ref_code']}\n\n"
+                f"Поделитесь кодом с друзьями: друг получит свою скидку 10% на первую покупку, "
+                f"а вам начислится скидка 15% за каждого приведённого.",
+                main_menu_keyboard(),
+            )
+            return
+
+        # ── Ожидаем SMS-код ───────────────────────────────────────────
+        if state == "waiting_sms_code":
+            phone = sms.verify(vk_id, text)
+            if not phone:
+                await send(event, vk_id, "❌ Неверный код или он истёк. Введите код ещё раз или напиши номер телефона заново.")
+                return
+            try:
+                user_data = await register(vk_id, phone)
+            except Exception:
+                log.exception("Register failed")
+                await send(event, vk_id, "❌ Этот телефон уже зарегистрирован на другой аккаунт.")
+                clear_state(vk_id)
+                return
+            clear_state(vk_id)
+            await send(
+                event, vk_id,
+                f"✅ Номер подтверждён, вы зарегистрированы!\n\n"
                 f"🎁 Вам доступна скидка 10% на первую покупку.\n"
                 f"🔗 Ваш реф-код: {user_data['ref_code']}\n\n"
                 f"Поделитесь кодом с друзьями: друг получит свою скидку 10% на первую покупку, "
@@ -91,17 +134,33 @@ def register_handlers(bot: SimpleLongPollBot) -> None:
         if text == "🎁 Мои скидки":
             has_first = user_data.get("has_first_discount", False)
             ref_count = user_data.get("friend_discounts_count", 0)
+            active    = user_data.get("active_activation")
 
             lines = ["🎁 Ваши скидки:\n"]
+
+            # Активная скидка отдельным блоком
+            if active:
+                import time as _t
+                remaining = int(active["expires_at"] - _t.time())
+                if remaining > 0:
+                    h = remaining // 3600
+                    m = (remaining % 3600) // 60
+                    time_str = f"{h} ч {m:02d} мин" if h > 0 else f"{m} мин"
+                    pct = "10%" if active["type"] == "first_10" else "15%"
+                    lines.append(f"🟢 Скидка {pct} АКТИВИРОВАНА — покажите этот экран кассиру")
+                    lines.append(f"   ⏱ действует ещё {time_str}\n")
+
             if has_first:
                 lines.append("✅ Скидка 10% на первую покупку — доступна")
             else:
-                lines.append("☑️ Скидка 10% на первую покупку — использована")
+                if not (active and active["type"] == "first_10"):
+                    lines.append("☑️ Скидка 10% на первую покупку — использована")
 
             if ref_count > 0:
                 lines.append(f"✅ Скидки 15% за друзей: {ref_count} шт.")
             else:
-                lines.append("• Скидки 15% за друзей: нет")
+                if not (active and active["type"] == "referral_15"):
+                    lines.append("• Скидки 15% за друзей: нет")
 
             if not has_first and ref_count == 0:
                 lines.append(
